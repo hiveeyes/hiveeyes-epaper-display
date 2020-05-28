@@ -10,6 +10,7 @@ This code acquires beehive data from the Hiveeyes platform.
 It uses the HTTP data export interface of Kotori_.
 
 For more information, see:
+
 - `Kotori data export`_
 - `Using the Hiveeyes HTTP export interface from Arduino`_
 - `Display Hiveeyes data on an e-Paper display`_
