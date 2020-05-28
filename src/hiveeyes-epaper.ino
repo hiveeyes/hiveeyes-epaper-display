@@ -18,6 +18,7 @@
   See more at http://www.dsbird.org.uk
 */
 #include "owm_credentials.h"  // See 'owm_credentials' tab and enter your OWM API key and set the Wifi SSID and PASSWORD
+#include "hiveeyes_config.h"
 #include <ArduinoJson.h>       // https://github.com/bblanchon/ArduinoJson
 #include <WiFi.h>              // Built-in
 #include "time.h"              // Built-in
@@ -28,6 +29,7 @@
 #include <U8g2_for_Adafruit_GFX.h>
 #include "epaper_fonts.h"
 #include "forecast_record.h"
+#include "hive_record.h"
 #include "lang.h"
 //#include "lang_cz.h"                // Localisation (Czech)
 //#include "lang_fr.h"                // Localisation (French)
@@ -85,11 +87,14 @@ long    StartTime = 0;
 //################ PROGRAM VARIABLES and OBJECTS ################
 
 #define max_readings 24
-
 Forecast_record_type  WxConditions[1];
 Forecast_record_type  WxForecast[max_readings];
-
 #include <common.h>
+
+#define max_readings_hiveeyes 24
+Hive_record_type      hive_data[max_readings_hiveeyes];
+#include "hiveeyes_client.h"
+
 
 #define autoscale_on  true
 #define autoscale_off false
@@ -116,11 +121,18 @@ void setup() {
       byte Attempts = 1;
       bool RxWeather = false, RxForecast = false;
       WiFiClient client;   // wifi client object
+
+      // Obtain weather information.
       while ((RxWeather == false || RxForecast == false) && Attempts <= 2) { // Try up-to 2 time for Weather and Forecast data
         if (RxWeather  == false) RxWeather  = obtain_wx_data(client, "weather");
         if (RxForecast == false) RxForecast = obtain_wx_data(client, "forecast");
         Attempts++;
       }
+
+      // Obtain hive information.
+      obtain_hiveeyes_data(client);
+
+      // Display data.
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
         StopWiFi(); // Reduces power consumption
         DisplayWeather();
