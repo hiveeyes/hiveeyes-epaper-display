@@ -8,6 +8,7 @@ Development
 ***********
 - Add Hiveeyes HTTP data export module for Arduino,
   see also `Using the Hiveeyes HTTP export interface from Arduino`_.
+- Add "make upload" target to Makefile
 
 
 ****************
