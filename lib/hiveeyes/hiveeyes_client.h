@@ -19,18 +19,30 @@ bool decode_data(WiFiClient& json) {
     Serial.println(error.c_str());
     return false;
   }
-
-  for (int i = 0; i < max_readings_hiveeyes; i++) {
+  
+  if (max_readings_hiveeyes  > doc.size()) {
+    hive_readings = doc.size();
+  }
+  else
+  {
+    hive_readings = max_readings_hiveeyes;
+  }
+  Serial.println(" Decoding hiveeyes data");
+  for (int i = 0; i < hive_readings; i++) {
 
     JsonObject reading = doc[i];
 
     hive_data[i].time                   = reading["time"].as<char*>();
-    hive_data[i].temperature_outside    = reading["temperature.0x77.i2c:0"];
-    hive_data[i].humidity_outside       = reading["humidity.0x77.i2c:0"];
-    hive_data[i].temperature_inside_1   = reading["temperature.28ff641d8fc3944f.onewire:0"];
-    hive_data[i].temperature_inside_2   = reading["temperature.28ff641d8fdf18c1.onewire:0"];
-    hive_data[i].weight                 = reading["weight.0"];
-
+    hive_data[i].temperature_outside    = reading[ReadingTemperature_outside];
+    hive_data[i].humidity_outside       = reading[ReadingHumidity_outside];
+    hive_data[i].temperature_inside_1   = reading[ReadingTemperature_inside_1];
+    hive_data[i].temperature_inside_2   = reading[ReadingTemperature_inside_2];
+    hive_data[i].temperature_inside_3   = reading[ReadingTemperature_inside_3];
+    hive_data[i].temperature_inside_4   = reading[ReadingTemperature_inside_4];
+    hive_data[i].temperature_inside_5   = reading[ReadingTemperature_inside_5];
+    hive_data[i].weight                 = reading[ReadingWeight];
+    hive_data[i].voltage                = reading[ReadingVoltage];
+    hive_data[i].rssi                   = reading[ReadingRssi];
   }
 
   return true;
@@ -41,10 +53,11 @@ bool obtain_hiveeyes_data(WiFiClient& client) {
   // Define URI.
   // https://getkotori.org/docs/handbook/export/
   HTTPClient http;
+  http.useHTTP10(true);
   String server = hiveeyes_server;
 
   // TODO: Improve Kotori by requesting only last reading.
-  String uri = hiveeyes_uri + "?from=now-1m";
+  String uri = hiveeyes_uri + hiveeyes_readTime;
 
   // Make HTTP request.
   //http.begin(uri, test_root_ca); // HTTPS example connection
@@ -54,7 +67,7 @@ bool obtain_hiveeyes_data(WiFiClient& client) {
   if (httpCode == HTTP_CODE_OK) {
     if (!decode_data(http.getStream())) return false;
     success = true;
-
+    Serial.println("Connection Hiveeyes OK");
   } else {
     Serial.printf("Connection failed, error: %s", http.errorToString(httpCode).c_str());
     success = false;

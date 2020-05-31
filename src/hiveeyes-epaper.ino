@@ -30,10 +30,10 @@
 #include "epaper_fonts.h"
 #include "forecast_record.h"
 #include "hive_record.h"
-#include "lang.h"
+//#include "lang.h"
 //#include "lang_cz.h"                // Localisation (Czech)
 //#include "lang_fr.h"                // Localisation (French)
-//#include "lang_gr.h"                // Localisation (German)
+#include "lang_gr.h"                // Localisation (German)
 //#include "lang_it.h"                // Localisation (Italian)
 //#include "lang_nl.h"                // Localisation (Dutch)
 //#include "lang_pl.h"                // Localisation (Polish)
@@ -44,22 +44,23 @@
 enum alignment {LEFT, RIGHT, CENTER};
 
 // Connections for e.g. LOLIN D32
-static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
-static const uint8_t EPD_CS   = 5;  // to EPD CS
-static const uint8_t EPD_RST  = 16; // to EPD RST
-static const uint8_t EPD_DC   = 17; // to EPD DC
-static const uint8_t EPD_SCK  = 18; // to EPD CLK
-static const uint8_t EPD_MISO = 19; // Master-In Slave-Out not used, as no data from display
-static const uint8_t EPD_MOSI = 23; // to EPD DIN
+//static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
+//static const uint8_t EPD_CS   = 5;  // to EPD CS
+//static const uint8_t EPD_RST  = 16; // to EPD RST
+//static const uint8_t EPD_DC   = 17; // to EPD DC
+//static const uint8_t EPD_SCK  = 18; // to EPD CLK
+//static const uint8_t EPD_MISO = 19; // Master-In Slave-Out not used, as no data from display
+//static const uint8_t EPD_MOSI = 23; // to EPD DIN
 
 // Connections for e.g. Waveshare ESP32 e-Paper Driver Board
-//static const uint8_t EPD_BUSY = 25;
-//static const uint8_t EPD_CS   = 15;
-//static const uint8_t EPD_RST  = 26; 
-//static const uint8_t EPD_DC   = 27; 
-//static const uint8_t EPD_SCK  = 13;
-//static const uint8_t EPD_MISO = 12; // Master-In Slave-Out not used, as no data from display
-//static const uint8_t EPD_MOSI = 14;
+static const uint8_t EPD_BUSY = 25;
+static const uint8_t EPD_CS   = 15;
+static const uint8_t EPD_RST  = 26; 
+static const uint8_t EPD_DC   = 27; 
+static const uint8_t EPD_SCK  = 13;
+static const uint8_t EPD_MISO = 12; // Master-In Slave-Out not used, as no data from display
+static const uint8_t EPD_MOSI = 14;
+static const uint8_t BATTERY_PIN = 35; //
 
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 
@@ -92,6 +93,7 @@ Forecast_record_type  WxForecast[max_readings];
 #include <common.h>
 
 #define max_readings_hiveeyes 24
+int hive_readings;
 Hive_record_type      hive_data[max_readings_hiveeyes];
 #include "hiveeyes_client.h"
 
@@ -106,10 +108,11 @@ float temperature_readings[max_readings] = {0};
 float humidity_readings[max_readings]    = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
+float weight_readings[max_readings_hiveeyes]    = {0};
 
 long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
-int  WakeupTime    = 7;  // Don't wakeup until after 07:00 to save battery power
-int  SleepTime     = 23; // Sleep after (23+1) 00:00 to save battery power
+int  WakeupTime    = 0;  // Don't wakeup until after 07:00 to save battery power
+int  SleepTime     = 24; // Sleep after (23+1) 00:00 to save battery power
 
 //#########################################################################################
 void setup() {
@@ -117,12 +120,15 @@ void setup() {
   Serial.begin(115200);
   if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
     if (CurrentHour >= WakeupTime && CurrentHour <= SleepTime ) {
+      Serial.println("InitialiseDisplay");
       InitialiseDisplay(); // Give screen time to initialise by getting weather data!
       byte Attempts = 1;
       bool RxWeather = false, RxForecast = false;
+
       WiFiClient client;   // wifi client object
 
       // Obtain weather information.
+      Serial.println("get owm Data");
       while ((RxWeather == false || RxForecast == false) && Attempts <= 2) { // Try up-to 2 time for Weather and Forecast data
         if (RxWeather  == false) RxWeather  = obtain_wx_data(client, "weather");
         if (RxForecast == false) RxForecast = obtain_wx_data(client, "forecast");
@@ -130,6 +136,7 @@ void setup() {
       }
 
       // Obtain hive information.
+      Serial.println("get hiveeye Data");
       obtain_hiveeyes_data(client);
 
       // Display data.
@@ -168,6 +175,7 @@ void DisplayWeather() {                 // 4.2" e-paper display is 400x300 resol
   if (WxConditions[0].Visibility > 0) Visibility(335, 100, String(WxConditions[0].Visibility) + "M");
   if (WxConditions[0].Cloudcover > 0) CloudCover(350, 125, WxConditions[0].Cloudcover);
   DrawAstronomySection(233, 74);        // Astronomy section Sun rise/set, Moon phase and Moon icon
+  DrawHiveeyesSection(187); // DrawHiveeyesSection(y) Draw Hiveeyes Selection over full Screen size
 }
 //#########################################################################################
 void DrawHeadingSection() {
@@ -175,7 +183,8 @@ void DrawHeadingSection() {
   drawString(SCREEN_WIDTH / 2, 0, City, CENTER);
   drawString(SCREEN_WIDTH, 0, date_str, RIGHT);
   drawString(4, 0, time_str, LEFT);
-  DrawBattery(65, 12);
+  DrawBattery(34, 12);
+  DrawRSSI(97,10, wifi_signal);
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
 }
 //#########################################################################################
@@ -210,13 +219,13 @@ void DrawForecastSection(int x, int y) {
     }
     temperature_readings[r] = WxForecast[r].Temperature;
   }
-  display.drawLine(0, y + 172, SCREEN_WIDTH, y + 172, GxEPD_BLACK);
-  u8g2Fonts.setFont(u8g2_font_helvB12_tf);
-  drawString(SCREEN_WIDTH / 2, y + 180, TXT_FORECAST_VALUES, CENTER);
-  u8g2Fonts.setFont(u8g2_font_helvB10_tf);
-  DrawGraph(SCREEN_WIDTH / 400 * 30,  SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(SCREEN_WIDTH / 400 * 158, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, TXT_HUMIDITY_PERCENT, rain_readings, max_readings, autoscale_on, barchart_on);
+  //display.drawLine(0, y + 172, SCREEN_WIDTH, y + 172, GxEPD_BLACK);
+  //u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+  //drawString(SCREEN_WIDTH / 2, y + 180, TXT_FORECAST_VALUES, CENTER);
+  //u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+  //DrawGraph(SCREEN_WIDTH / 400 * 30,  SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
+  //DrawGraph(SCREEN_WIDTH / 400 * 158, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
+  //DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, TXT_HUMIDITY_PERCENT, rain_readings, max_readings, autoscale_on, barchart_on);
 }
 //#########################################################################################
 void DrawForecastWeather(int x, int y, int index) {
@@ -226,6 +235,62 @@ void DrawForecastWeather(int x, int y, int index) {
   DisplayWXicon(x + 28, y + 35, WxForecast[index].Icon, SmallIcon);
   drawString(x + 31, y + 3, String(WxForecast[index].Period.substring(11, 16)), CENTER);
   drawString(x + 41, y + 52, String(WxForecast[index].High, 0) + "° / " + String(WxForecast[index].Low, 0) + "°", CENTER);
+}
+//#########################################################################################
+void DrawHiveeyesSection( int y) {
+  // Hiveeyes Heading
+  display.drawLine(SCREEN_WIDTH/3, y , SCREEN_WIDTH/3, SCREEN_HEIGHT, GxEPD_BLACK);
+  display.drawLine(SCREEN_WIDTH/3*2, y , SCREEN_WIDTH/3*2, SCREEN_HEIGHT, GxEPD_BLACK);
+  display.drawLine(0, y +0, SCREEN_WIDTH, y + 0, GxEPD_BLACK);
+  
+  // Hiveeyes Hive1
+  u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+  drawString(SCREEN_WIDTH / 6, y + 6, "Hive1", CENTER);
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  DrawBattery1(-5,y+29,  hive_data[hive_readings-1].voltage ,3.0 ,4.0 );
+  DrawRSSI(64, y+27, hive_data[hive_readings-1].rssi);
+  //Too Do! make void for Temp. Check all temp for Max and 
+  u8g2Fonts.setFont(FONT(u8g2_font_helvB10));
+  drawString(120, y + 37, String(hive_data[2].temperature_inside_1, 1) + "°C", RIGHT);
+  display.drawRect( 5, y + 40 , 10, -4, GxEPD_BLACK);
+  display.fillRect( 17,y + 40 , 10, -6, GxEPD_BLACK);
+  display.drawRect( 29,y + 40 , 10, -4, GxEPD_BLACK);
+  display.drawRect( 41,y + 40 , 10, -2, GxEPD_BLACK);
+  display.drawRect( 53,y + 40 , 10, -2, GxEPD_BLACK);
+  //DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode)
+  for (int r = 1; r <= hive_readings; r++) {
+    weight_readings[r] = hive_data[r].weight;
+  }
+  DrawGraph(20,250,100,40,1,1.05,("weight =" + String(hive_data[hive_readings-1].weight)),weight_readings,hive_readings,false,false);
+}
+//#########################################################################################
+void DrawRSSI(int x, int y, int rssi) {
+  int WIFIsignal = 0;
+  
+  int xpos = 1;
+  for (int _rssi = -100; _rssi <= rssi; _rssi = _rssi + 20) {
+    if (_rssi <= -20)  WIFIsignal = 20; //            <-20dbm displays 5-bars
+    if (_rssi <= -40)  WIFIsignal = 16; //  -40dbm to  -21dbm displays 4-bars
+    if (_rssi <= -60)  WIFIsignal = 12; //  -60dbm to  -41dbm displays 3-bars
+    if (_rssi <= -80)  WIFIsignal = 8;  //  -80dbm to  -61dbm displays 2-bars
+    if (_rssi <= -100) WIFIsignal = 4;  // -100dbm to  -81dbm displays 1-bar
+    display.fillRect(x + xpos * 6, y - WIFIsignal, 5, WIFIsignal, GxEPD_BLACK);
+    xpos++;
+  }
+  display.fillRect(x, y - 1, 5, 1, GxEPD_BLACK);
+  drawString(x + 41,  y - 8, String(rssi) + "dBm", CENTER);
+}
+//#########################################################################################
+void DrawBattery1(int x, int y, float voltage, float emptyV , float fullV) {
+  uint8_t percentage = 100;
+  percentage = 2836.9625 * pow(voltage, 4) - 43987.4889 * pow(voltage, 3) + 255233.8134 * pow(voltage, 2) - 656689.7123 * voltage + 632041.7303;
+  if (voltage >= fullV) percentage = 100;
+  if (voltage <= emptyV) percentage = 0;
+  display.drawRect(x + 15, y - 12, 19, 10, GxEPD_BLACK);
+  display.fillRect(x + 34, y - 10, 2, 5, GxEPD_BLACK);
+  display.fillRect(x + 17, y - 10, 15 * percentage / 100.0, 6, GxEPD_BLACK);
+  //drawString(x + 62, y - 11, String(percentage) + "%", RIGHT);
+  drawString(x + 52, y -11,  String(voltage, 2) + "V", CENTER);
 }
 //#########################################################################################
 void DrawMainWx(int x, int y) {
@@ -780,7 +845,7 @@ void Nodata(int x, int y, bool IconSize, String IconName) {
 //#########################################################################################
 void DrawBattery(int x, int y) {
   uint8_t percentage = 100;
-  float voltage = analogRead(35) / 4096.0 * 7.46;
+  float voltage = analogRead(BATTERY_PIN) / 4096.0 * 7.46;
   if (voltage > 1 ) { // Only display if there is a valid reading
     Serial.println("Voltage = " + String(voltage));
     percentage = 2836.9625 * pow(voltage, 4) - 43987.4889 * pow(voltage, 3) + 255233.8134 * pow(voltage, 2) - 656689.7123 * voltage + 632041.7303;
@@ -902,6 +967,7 @@ void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alig
 }
 //#########################################################################################
 void InitialiseDisplay() {
+  Serial.println("Initialise Display");
   display.init(0);
   SPI.end();
   SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);

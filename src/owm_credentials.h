@@ -1,17 +1,17 @@
 // Change to your WiFi credentials
-const char* ssid     = "your_SSID";
-const char* password = "your_PASSWORD";
+const char* ssid     = "FRITZ!Box 7490";
+const char* password = "06243647984188696083";
 
 // Use your own API key by signing up for a free developer account at https://openweathermap.org/
-String apikey       = "your_API_key";                      // See: https://openweathermap.org/
+String apikey       = "0428ba66534dfce1cf312be2b3ec6f6b";                      // See: https://openweathermap.org/
 const char server[] = "api.openweathermap.org";
 //http://api.openweathermap.org/data/2.5/forecast?q=Melksham,UK&APPID=your_OWM_API_key&mode=json&units=metric&cnt=40
 //http://api.openweathermap.org/data/2.5/weather?q=Melksham,UK&APPID=your_OWM_API_key&mode=json&units=metric&cnt=1
 //Set your location according to OWM locations
-String City             = "MELKSHAM";                      // Your home city See: http://bulk.openweathermap.org/sample/
-String Country          = "GB";                            // Your _ISO-3166-1_two-letter_country_code country code, on OWM find your nearest city and the country code is displayed
+String City             = "NORDERSTEDT";                      // Your home city See: http://bulk.openweathermap.org/sample/
+String Country          = "DE";                            // Your _ISO-3166-1_two-letter_country_code country code, on OWM find your nearest city and the country code is displayed
                                                            // https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes
-String Language         = "EN";                            // NOTE: Only the weather description is translated by OWM
+String Language         = "DE";                            // NOTE: Only the weather description is translated by OWM
                                                            // Examples: Arabic (AR) Czech (CZ) English (EN) Greek (EL) Persian(Farsi) (FA) Galician (GL) Hungarian (HU) Japanese (JA)
                                                            // Korean (KR) Latvian (LA) Lithuanian (LT) Macedonian (MK) Slovak (SK) Slovenian (SL) Vietnamese (VI)
 String Hemisphere       = "north";                         // or "south"  
