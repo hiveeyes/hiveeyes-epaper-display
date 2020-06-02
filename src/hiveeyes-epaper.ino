@@ -30,6 +30,7 @@
 #include "epaper_fonts.h"
 #include "forecast_record.h"
 #include "hive_record.h"
+#include "apicast_record.h"
 //#include "lang.h"
 //#include "lang_cz.h"                // Localisation (Czech)
 //#include "lang_fr.h"                // Localisation (French)
@@ -79,8 +80,8 @@ String version = "12.3";     // Version of this program
 //################ VARIABLES ###########################
 
 boolean LargeIcon = true, SmallIcon = false;
-#define Large  11           // For icon drawing, needs to be odd number for best effect
-#define Small  5            // For icon drawing, needs to be odd number for best effect
+#define Large  8           // For icon drawing, needs to be odd number for best effect
+#define Small  4            // For icon drawing, needs to be odd number for best effect
 String  time_str, date_str; // strings to hold time and received weather data
 int     wifi_signal, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0;
 long    StartTime = 0;
@@ -97,6 +98,8 @@ int hive_readings;
 Hive_record_type      hive_data[max_readings_hiveeyes];
 #include "hiveeyes_client.h"
 
+Apicast_record_type   beeflight[10];
+#include "apicast_client.h"
 
 #define autoscale_on  true
 #define autoscale_off false
@@ -138,7 +141,7 @@ void setup() {
       // Obtain hive information.
       Serial.println("get hiveeye Data");
       obtain_hiveeyes_data(client);
-
+      obtain_apicast_data(client);
       // Display data.
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
         StopWiFi(); // Reduces power consumption
@@ -176,6 +179,7 @@ void DisplayWeather() {                 // 4.2" e-paper display is 400x300 resol
   if (WxConditions[0].Cloudcover > 0) CloudCover(350, 125, WxConditions[0].Cloudcover);
   DrawAstronomySection(233, 74);        // Astronomy section Sun rise/set, Moon phase and Moon icon
   DrawHiveeyesSection(187); // DrawHiveeyesSection(y) Draw Hiveeyes Selection over full Screen size
+  DrawBeeflightSection(170, 233);
 }
 //#########################################################################################
 void DrawHeadingSection() {
@@ -188,11 +192,28 @@ void DrawHeadingSection() {
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
 }
 //#########################################################################################
+void DrawBeeflightSection(int x, int y) {
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  drawString(x, y, "morgens" , RIGHT);
+  drawString(x, y+10, beeflight[0].morning, RIGHT);
+  drawString(x, y+20, beeflight[1].morning, RIGHT);
+  drawString(x, y+30, beeflight[2].morning, RIGHT);
+  drawString(x+45, y, "mittags" , RIGHT);
+  drawString(x+45, y+10, beeflight[0].noon, RIGHT);
+  drawString(x+45, y+20, beeflight[1].noon, RIGHT);
+  drawString(x+45, y+30, beeflight[2].noon, RIGHT);
+  drawString(x+90, y, "abends" , RIGHT);
+  drawString(x+90, y+10, beeflight[0].evening, RIGHT);
+  drawString(x+90, y+20, beeflight[1].evening, RIGHT);
+  drawString(x+90, y+30, beeflight[2].evening, RIGHT);
+}
+
+//#########################################################################################
 void DrawMainWeatherSection(int x, int y) {
-  DisplayDisplayWindSection(x - 115, y - 3, WxConditions[0].Winddir, WxConditions[0].Windspeed, 40);
+  DisplayDisplayWindSection(x - 130, y - 20, WxConditions[0].Winddir, WxConditions[0].Windspeed, 25);
   DisplayWXicon(x + 5, y - 5, WxConditions[0].Icon, LargeIcon);
   u8g2Fonts.setFont(u8g2_font_helvB10_tf);
-  DrawPressureAndTrend(x - 120, y + 58, WxConditions[0].Pressure, WxConditions[0].Trend);
+  DrawPressureAndTrend(x - 140, y + 28, WxConditions[0].Pressure, WxConditions[0].Trend);
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
   String Wx_Description = WxConditions[0].Forecast0;
   if (WxConditions[0].Forecast1 != "") Wx_Description += " & " +  WxConditions[0].Forecast1;
@@ -225,7 +246,7 @@ void DrawForecastSection(int x, int y) {
   //u8g2Fonts.setFont(u8g2_font_helvB10_tf);
   //DrawGraph(SCREEN_WIDTH / 400 * 30,  SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
   //DrawGraph(SCREEN_WIDTH / 400 * 158, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
-  //DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, TXT_HUMIDITY_PERCENT, rain_readings, max_readings, autoscale_on, barchart_on);
+  DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, TXT_HUMIDITY_PERCENT, rain_readings, max_readings, autoscale_on, barchart_on);
 }
 //#########################################################################################
 void DrawForecastWeather(int x, int y, int index) {
@@ -247,8 +268,8 @@ void DrawHiveeyesSection( int y) {
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
   drawString(SCREEN_WIDTH / 6, y + 6, "Hive1", CENTER);
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  DrawBattery1(-5,y+29,  hive_data[hive_readings-1].voltage ,3.0 ,4.0 );
-  DrawRSSI(64, y+27, hive_data[hive_readings-1].rssi);
+  DrawBattery1(-9,y+16,  hive_data[hive_readings-1].voltage ,3.0 ,4.0 );
+  DrawRSSI(106, y+14, hive_data[hive_readings-1].rssi);
   //Too Do! make void for Temp. Check all temp for Max and 
   u8g2Fonts.setFont(FONT(u8g2_font_helvB10));
   drawString(120, y + 37, String(hive_data[2].temperature_inside_1, 1) + "°C", RIGHT);
@@ -278,7 +299,7 @@ void DrawRSSI(int x, int y, int rssi) {
     xpos++;
   }
   display.fillRect(x, y - 1, 5, 1, GxEPD_BLACK);
-  drawString(x + 41,  y - 8, String(rssi) + "dBm", CENTER);
+  //drawString(x + 41,  y - 8, String(rssi) + "dBm", CENTER);
 }
 //#########################################################################################
 void DrawBattery1(int x, int y, float voltage, float emptyV , float fullV) {
@@ -290,7 +311,7 @@ void DrawBattery1(int x, int y, float voltage, float emptyV , float fullV) {
   display.fillRect(x + 34, y - 10, 2, 5, GxEPD_BLACK);
   display.fillRect(x + 17, y - 10, 15 * percentage / 100.0, 6, GxEPD_BLACK);
   //drawString(x + 62, y - 11, String(percentage) + "%", RIGHT);
-  drawString(x + 52, y -11,  String(voltage, 2) + "V", CENTER);
+  //drawString(x + 52, y -11,  String(voltage, 2) + "V", CENTER);
 }
 //#########################################################################################
 void DrawMainWx(int x, int y) {
@@ -309,30 +330,30 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
   int dxo, dyo, dxi, dyi;
   display.drawLine(0, 15, 0, y + Cradius + 30, GxEPD_BLACK);
   display.drawCircle(x, y, Cradius, GxEPD_BLACK);     // Draw compass circle
-  display.drawCircle(x, y, Cradius + 1, GxEPD_BLACK); // Draw compass circle
-  display.drawCircle(x, y, Cradius * 0.7, GxEPD_BLACK); // Draw compass inner circle
+  display.drawCircle(x, y, Cradius - 3, GxEPD_BLACK); // Draw compass circle
+  //display.drawCircle(x, y, Cradius * 0.7, GxEPD_BLACK); // Draw compass inner circle
   for (float a = 0; a < 360; a = a + 22.5) {
     dxo = Cradius * cos((a - 90) * PI / 180);
     dyo = Cradius * sin((a - 90) * PI / 180);
-    if (a == 45)  drawString(dxo + x + 10, dyo + y - 10, TXT_NE, CENTER);
-    if (a == 135) drawString(dxo + x + 7,  dyo + y + 5,  TXT_SE, CENTER);
-    if (a == 225) drawString(dxo + x - 15, dyo + y,      TXT_SW, CENTER);
-    if (a == 315) drawString(dxo + x - 15, dyo + y - 10, TXT_NW, CENTER);
+    //if (a == 45)  drawString(dxo + x + 10, dyo + y - 10, TXT_NE, CENTER);
+    //if (a == 135) drawString(dxo + x + 7,  dyo + y + 5,  TXT_SE, CENTER);
+    //if (a == 225) drawString(dxo + x - 15, dyo + y,      TXT_SW, CENTER);
+    //if (a == 315) drawString(dxo + x - 15, dyo + y - 10, TXT_NW, CENTER);
     dxi = dxo * 0.9;
     dyi = dyo * 0.9;
     display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, GxEPD_BLACK);
-    dxo = dxo * 0.7;
-    dyo = dyo * 0.7;
-    dxi = dxo * 0.9;
-    dyi = dyo * 0.9;
-    display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, GxEPD_BLACK);
+    //dxo = dxo * 0.7;
+    //dyo = dyo * 0.7;
+    //dxi = dxo * 0.9;
+    //dyi = dyo * 0.9;
+    //display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, GxEPD_BLACK);
   }
   drawString(x, y - Cradius - 10,     TXT_N, CENTER);
   drawString(x, y + Cradius + 5,      TXT_S, CENTER);
   drawString(x - Cradius - 10, y - 3, TXT_W, CENTER);
   drawString(x + Cradius + 8,  y - 3, TXT_E, CENTER);
-  drawString(x - 2, y - 20, WindDegToDirection(angle), CENTER);
-  drawString(x + 3, y + 12, String(angle, 0) + "°", CENTER);
+  //drawString(x - 2, y - 18, WindDegToDirection(angle), CENTER);
+  //drawString(x + 3, y + 12, String(angle, 0) + "°", CENTER);
   drawString(x + 3, y - 3, String(windspeed, 1) + (Units == "M" ? "m/s" : "mph"), CENTER);
 }
 //#########################################################################################

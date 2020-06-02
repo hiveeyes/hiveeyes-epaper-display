@@ -14,8 +14,20 @@ String ReadingVoltage                = "system.battery-voltage";
 String ReadingWeight                 = "weight.0";
 String ReadingRssi                   = "system.wifi.rssi";
 
-// build uri complete
-String hiveeyes_uri = uri + "?include="+ ReadingTemperature_outside  + ","
+
+//This Config is to get forecast beeflight Data from http://apicast.hiveeyes.org/ 
+
+String apicast_server   = "apicast.hiveeyes.org";
+String apicast_uri_1    = "/beeflight/forecast/germany/";
+// federal-state and Station
+String apicast_uri_2    = "berlin_brandenburg/berlin";                               
+
+
+
+
+// build uri´s complete please no Changes here!!!
+String apicast_uri = apicast_uri_1 + apicast_uri_2;
+String hiveeyes_uri = uri + "?include=" + ReadingTemperature_outside  + ","
                                         + ReadingHumidity_outside + ","
                                         + ReadingTemperature_inside_1 + ","
                                         + ReadingTemperature_inside_2 + ","
@@ -25,4 +37,4 @@ String hiveeyes_uri = uri + "?include="+ ReadingTemperature_outside  + ","
                                         + ReadingVoltage + ","
                                         + ReadingWeight + ","
                                         + ReadingRssi;
-                                    
+
