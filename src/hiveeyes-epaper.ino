@@ -23,6 +23,7 @@
 #include <WiFi.h>              // Built-in
 #include "time.h"              // Built-in
 #include <SPI.h>               // Built-in
+#include <upng.h>
 #define  ENABLE_GxEPD2_display 0
 #include <GxEPD2_BW.h>
 #include <GxEPD2_3C.h>
@@ -56,8 +57,8 @@ enum alignment {LEFT, RIGHT, CENTER};
 // Connections for e.g. Waveshare ESP32 e-Paper Driver Board
 static const uint8_t EPD_BUSY = 25;
 static const uint8_t EPD_CS   = 15;
-static const uint8_t EPD_RST  = 26; 
-static const uint8_t EPD_DC   = 27; 
+static const uint8_t EPD_RST  = 26;
+static const uint8_t EPD_DC   = 27;
 static const uint8_t EPD_SCK  = 13;
 static const uint8_t EPD_MISO = 12; // Master-In Slave-Out not used, as no data from display
 static const uint8_t EPD_MOSI = 14;
@@ -101,6 +102,9 @@ Hive_record_type      hive_data[max_readings_hiveeyes];
 Apicast_record_type   beeflight[10];
 #include "apicast_client.h"
 
+String image_bitmap;
+#include "image_client.h"
+
 #define autoscale_on  true
 #define autoscale_off false
 #define barchart_on   true
@@ -131,7 +135,7 @@ void setup() {
       WiFiClient client;   // wifi client object
 
       // Obtain weather information.
-      Serial.println("get owm Data");
+      Serial.println("Get OWM data");
       while ((RxWeather == false || RxForecast == false) && Attempts <= 2) { // Try up-to 2 time for Weather and Forecast data
         if (RxWeather  == false) RxWeather  = obtain_wx_data(client, "weather");
         if (RxForecast == false) RxForecast = obtain_wx_data(client, "forecast");
@@ -139,9 +143,14 @@ void setup() {
       }
 
       // Obtain hive information.
-      Serial.println("get hiveeye Data");
+      Serial.println("Get Hiveeyes data");
       obtain_hiveeyes_data(client);
       obtain_apicast_data(client);
+
+      // Obtain image information.
+      Serial.println("Get image data");
+      image_bitmap = obtain_image(client);
+
       // Display data.
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
         StopWiFi(); // Reduces power consumption
@@ -180,6 +189,7 @@ void DisplayWeather() {                 // 4.2" e-paper display is 400x300 resol
   DrawAstronomySection(233, 74);        // Astronomy section Sun rise/set, Moon phase and Moon icon
   DrawHiveeyesSection(187); // DrawHiveeyesSection(y) Draw Hiveeyes Selection over full Screen size
   DrawBeeflightSection(170, 233);
+  DrawImagePNG(100, 100, image_bitmap);
 }
 //#########################################################################################
 void DrawHeadingSection() {
@@ -263,14 +273,14 @@ void DrawHiveeyesSection( int y) {
   display.drawLine(SCREEN_WIDTH/3, y , SCREEN_WIDTH/3, SCREEN_HEIGHT, GxEPD_BLACK);
   display.drawLine(SCREEN_WIDTH/3*2, y , SCREEN_WIDTH/3*2, SCREEN_HEIGHT, GxEPD_BLACK);
   display.drawLine(0, y +0, SCREEN_WIDTH, y + 0, GxEPD_BLACK);
-  
+
   // Hiveeyes Hive1
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
   drawString(SCREEN_WIDTH / 6, y + 6, "Hive1", CENTER);
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   DrawBattery1(-9,y+16,  hive_data[hive_readings-1].voltage ,3.0 ,4.0 );
   DrawRSSI(106, y+14, hive_data[hive_readings-1].rssi);
-  //Too Do! make void for Temp. Check all temp for Max and 
+  //Too Do! make void for Temp. Check all temp for Max and
   u8g2Fonts.setFont(FONT(u8g2_font_helvB10));
   drawString(120, y + 37, String(hive_data[2].temperature_inside_1, 1) + "°C", RIGHT);
   display.drawRect( 5, y + 40 , 10, -4, GxEPD_BLACK);
@@ -287,7 +297,7 @@ void DrawHiveeyesSection( int y) {
 //#########################################################################################
 void DrawRSSI(int x, int y, int rssi) {
   int WIFIsignal = 0;
-  
+
   int xpos = 1;
   for (int _rssi = -100; _rssi <= rssi; _rssi = _rssi + 20) {
     if (_rssi <= -20)  WIFIsignal = 20; //            <-20dbm displays 5-bars
@@ -984,6 +994,34 @@ void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alig
     String secondLine = text.substring(text_width);
     secondLine.trim(); // Remove any leading spaces
     u8g2Fonts.println(secondLine);
+  }
+}
+//#########################################################################################
+void DrawImagePNG(int x, int y, String payload) {
+
+  // Convert format.
+  const unsigned char* buffer = reinterpret_cast<const unsigned char*>(payload.c_str());
+
+  upng_t* upng;
+  upng = upng_new_from_bytes(buffer, payload.length());
+
+  if (upng != NULL) {
+
+    // Decode PNG image.
+    upng_decode(upng);
+    if (upng_get_error(upng) == UPNG_EOK) {
+
+      // Get pointer to bitmap buffer.
+      const uint8_t *bitmap = upng_get_buffer(upng);
+
+      // Draw image.
+      int width = upng_get_width(upng);
+      int height = upng_get_height(upng);
+      display.drawImage(bitmap, x, y, width, height, false, false, true);
+
+    }
+
+    upng_free(upng);
   }
 }
 //#########################################################################################
