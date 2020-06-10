@@ -45,24 +45,6 @@
 
 enum alignment {LEFT, RIGHT, CENTER};
 
-// Connections for e.g. LOLIN D32
-//static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
-//static const uint8_t EPD_CS   = 5;  // to EPD CS
-//static const uint8_t EPD_RST  = 16; // to EPD RST
-//static const uint8_t EPD_DC   = 17; // to EPD DC
-//static const uint8_t EPD_SCK  = 18; // to EPD CLK
-//static const uint8_t EPD_MISO = 19; // Master-In Slave-Out not used, as no data from display
-//static const uint8_t EPD_MOSI = 23; // to EPD DIN
-
-// Connections for e.g. Waveshare ESP32 e-Paper Driver Board
-static const uint8_t EPD_BUSY = 25;
-static const uint8_t EPD_CS   = 15;
-static const uint8_t EPD_RST  = 26;
-static const uint8_t EPD_DC   = 27;
-static const uint8_t EPD_SCK  = 13;
-static const uint8_t EPD_MISO = 12; // Master-In Slave-Out not used, as no data from display
-static const uint8_t EPD_MOSI = 14;
-static const uint8_t BATTERY_PIN = 35; //
 
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 
@@ -125,6 +107,7 @@ int  SleepTime     = 24; // Sleep after (23+1) 00:00 to save battery power
 void setup() {
   StartTime = millis();
   Serial.begin(115200);
+  init_image();
   if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
     if (CurrentHour >= WakeupTime && CurrentHour <= SleepTime ) {
       Serial.println("InitialiseDisplay");
@@ -146,16 +129,14 @@ void setup() {
       Serial.println("Get Hiveeyes data");
       obtain_hiveeyes_data(client);
       obtain_apicast_data(client);
-
-      // Obtain image information.
-      Serial.println("Get image data");
-      image_bitmap = obtain_image(client);
-
+      
+      // toDo... Wakup reasons by Buttons-External Wake Up (ext1) Example here https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
+      
       // Display data.
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
-        StopWiFi(); // Reduces power consumption
         DisplayWeather();
-        display.display(false); // Full screen update mode
+        StopWiFi(); // Reduces power consumption
+        //display.display(false); // Full screen update mode
       }
     }
   }
@@ -189,7 +170,7 @@ void DisplayWeather() {                 // 4.2" e-paper display is 400x300 resol
   DrawAstronomySection(233, 74);        // Astronomy section Sun rise/set, Moon phase and Moon icon
   DrawHiveeyesSection(187); // DrawHiveeyesSection(y) Draw Hiveeyes Selection over full Screen size
   DrawBeeflightSection(170, 233);
-  DrawImagePNG(100, 100, image_bitmap);
+  Draw_Image_from_http(100,100,"TestPNG");
 }
 //#########################################################################################
 void DrawHeadingSection() {
@@ -1017,13 +998,53 @@ void DrawImagePNG(int x, int y, String payload) {
       // Draw image.
       int width = upng_get_width(upng);
       int height = upng_get_height(upng);
-      display.drawImage(bitmap, x, y, width, height, false, false, true);
-
+      display.writeImage(bitmap, x, y, 200, 200, false, false, true);
+      display.refresh();
     }
 
     upng_free(upng);
   }
 }
+//#########################################################################################
+void Draw_Image_from_http(int x,int y,String name) {
+  // get Image Counter from name of Image in config 
+  int counter = 99;
+  Serial.println(name);
+  for (int i=0; i<=10; i++) {
+    if (name == get_Image[i].name) {
+    Serial.println("Find Image Data in Config");
+    counter = i;
+    break;
+    }
+  }
+  if (counter == 99) {
+    Serial.println("Image not Found in Data");
+    return;
+    }
+
+  Serial.println("Get image data");
+  WiFiClient client;
+  image_bitmap = obtain_image(client, counter);
+  
+  if (get_Image[counter].typ == PNG) {
+    Serial.println("Decode PNG");
+    DrawImagePNG(x, y, image_bitmap);
+  }
+  else if (get_Image[counter].typ == BMP){
+    Serial.println("Display BMP");
+    
+    //ToDo... Does not Work at the Moment writeImage need a Char[] array
+    //char image_length[image_bitmap.length()];
+    //char copy[image_length];
+    //image_bitmap.toCharArray(copy, image_length);
+    // display.writeImage(copy, x, y, 200, 200, false, false, true);
+  } 
+  else {Serial.println("Image Type not support");}
+    
+  
+}
+
+
 //#########################################################################################
 void InitialiseDisplay() {
   Serial.println("Initialise Display");

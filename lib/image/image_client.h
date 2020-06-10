@@ -3,16 +3,16 @@
 
 #include <HTTPClient.h>
 
-String obtain_image(WiFiClient& client) {
 
-  // Define URI.
-  String server = "swarm.hiveeyes.org";
-  String uri = "/abc/def";
-
+String obtain_image(WiFiClient& client, int counter) {
+  
+  Serial.println("conecting to "+get_Image[counter].host);
   HTTPClient http;
-  http.begin(client, server, 80, uri);
+  http.useHTTP10(true);
+  http.begin(client, get_Image[counter].host, 80, get_Image[counter].uri);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
+    
     String payload = http.getString();
     return payload;
   }
