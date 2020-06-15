@@ -32,6 +32,7 @@
 #include "forecast_record.h"
 #include "hive_record.h"
 #include "apicast_record.h"
+
 //#include "lang.h"
 //#include "lang_cz.h"                // Localisation (Czech)
 //#include "lang_fr.h"                // Localisation (French)
@@ -39,7 +40,6 @@
 //#include "lang_it.h"                // Localisation (Italian)
 //#include "lang_nl.h"                // Localisation (Dutch)
 //#include "lang_pl.h"                // Localisation (Polish)
-
 #define SCREEN_WIDTH  400.0    // Set for landscape mode, don't remove the decimal place!
 #define SCREEN_HEIGHT 300.0
 
@@ -80,10 +80,10 @@ Forecast_record_type  WxForecast[max_readings];
 int hive_readings;
 Hive_record_type      hive_data[max_readings_hiveeyes];
 #include "hiveeyes_client.h"
-
-Apicast_record_type   beeflight[10];
-#include "apicast_client.h"
-
+#ifdef Apicast
+  Apicast_record_type   beeflight[10];
+  #include "apicast_client.h"
+#endif
 String image_bitmap;
 #include "image_client.h"
 
@@ -100,90 +100,149 @@ float snow_readings[max_readings]        = {0};
 float weight_readings[max_readings_hiveeyes]    = {0};
 
 long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
-int  WakeupTime    = 0;  // Don't wakeup until after 07:00 to save battery power
-int  SleepTime     = 24; // Sleep after (23+1) 00:00 to save battery power
+int  WakeupTime    = 1;  // Don't wakeup until after 07:00 to save battery power
+int  SleepTime     = 22; // Sleep after (23+1) 00:00 to save battery power
 
 //#########################################################################################
 void setup() {
   StartTime = millis();
   Serial.begin(115200);
+  int wakeup_reason = esp_sleep_get_wakeup_cause();
+  
   init_image();
+  InitialiseDisplay(); // Give screen time to initialise by getting weather data!
   if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
-    if (CurrentHour >= WakeupTime && CurrentHour <= SleepTime ) {
-      Serial.println("InitialiseDisplay");
-      InitialiseDisplay(); // Give screen time to initialise by getting weather data!
-      byte Attempts = 1;
-      bool RxWeather = false, RxForecast = false;
-
-      WiFiClient client;   // wifi client object
-
-      // Obtain weather information.
-      Serial.println("Get OWM data");
-      while ((RxWeather == false || RxForecast == false) && Attempts <= 2) { // Try up-to 2 time for Weather and Forecast data
-        if (RxWeather  == false) RxWeather  = obtain_wx_data(client, "weather");
-        if (RxForecast == false) RxForecast = obtain_wx_data(client, "forecast");
-        Attempts++;
-      }
-
-      // Obtain hive information.
-      Serial.println("Get Hiveeyes data");
-      obtain_hiveeyes_data(client);
-      obtain_apicast_data(client);
-      
-      // toDo... Wakup reasons by Buttons-External Wake Up (ext1) Example here https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
-      
-      // Display data.
-      if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
-        DisplayWeather();
-        StopWiFi(); // Reduces power consumption
-        //display.display(false); // Full screen update mode
-      }
-    }
+    //if (CurrentHour >= WakeupTime && CurrentHour <= SleepTime ) {
+    WiFiClient client;
+    //Obtain weather and Hiveeyes information.
+   // wifi client object 
   }
-  BeginSleep();
-}
+  #ifdef Enable_Touch
+    //int wake_reason = print_wakeup_reason();
+    touch_pad_t touchPin;
+    touchPin = esp_sleep_get_touchpad_wakeup_status();
+    //init_touch();
+    switch(touchPin){
+      case 0  : Serial.println("Touch 0 detected"); DisplayWeather();break;
+      case 1  : Serial.println("Touch 1 detected"); BeginSleep();break;
+      case 2  : Serial.println("Touch 2 detected"); BeginSleep();break;
+      case 3  : Serial.println("Touch 3 detected"); BeginSleep();break;
+      case 4  : Serial.println("Touch 4 detected"); BeginSleep();break;
+      case 5  : Serial.println("Touch 5 detected"); BeginSleep();break;
+      case 6  : Serial.println("Touch 6 detected"); BeginSleep();break;
+      case 7  : Serial.println("Touch 7 detected"); DisplayWeather();break;
+      case 8  : Serial.println("Touch 8 detected"); Draw_Image_from_http(0,0,"Test_PNG_400_300");break;
+      case 9  : Serial.println("Touch 9 detected"); DisplaySlideShow(5000);break;
+      default : Serial.println("Wakeup not by touchpad")   ;  DisplayWeather(); break;
+    } 
+  #endif // #ifdef Enable Touch 
+  delay(100);
+  BeginSleep(); 
+}  
 //#########################################################################################
-void loop() { // this will never run!
+void loop() {
+   // this will never run!
 }
 //#########################################################################################
 void BeginSleep() {
+  init_touch();
   display.powerOff();
   long SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)); //Some ESP32 are too fast to maintain accurate time
   esp_sleep_enable_timer_wakeup((SleepTimer+20) * 1000000LL); // Added +20 seconnds to cover ESP32 RTC timer source inaccuracies
-#ifdef BUILTIN_LED
-  pinMode(BUILTIN_LED, INPUT); // If it's On, turn it off and some boards use GPIO-5 for SPI-SS, which remains low after screen use
-  digitalWrite(BUILTIN_LED, HIGH);
-#endif
+  //Configure Touchpad as wakeup source
+  esp_sleep_enable_touchpad_wakeup();
+  
   Serial.println("Entering " + String(SleepTimer) + "-secs of sleep time");
   Serial.println("Awake for : " + String((millis() - StartTime) / 1000.0, 3) + "-secs");
   Serial.println("Starting deep-sleep period...");
+  delay(100);
+  //Beginn Deep Sleep
   esp_deep_sleep_start();      // Sleep for e.g. 30 minutes
 }
 //#########################################################################################
+void BeginlightSleep(long Sleep){
+Serial.println();
+Serial.println("Start Light Sleep");
+touchAttachInterrupt(T9, callback , Threshold); //touch for next Image
+esp_sleep_enable_timer_wakeup (Sleep* 1000);
+esp_sleep_enable_touchpad_wakeup();
+delay(100);
+esp_light_sleep_start ();  
+}
+
+//#########################################################################################
+void DisplaySlideShow(int wait) {
+  //if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
+    //if (CurrentHour >= WakeupTime && CurrentHour <= SleepTime ) {
+      Serial.println("InitialiseDisplay");
+      InitialiseDisplay(); // Give screen time to initialise by getting weather data!
+        
+      WiFiClient client;   // wifi client object
+      Serial.println("Run Slideschow:");
+      Draw_Image_from_http(0,0,"Test_PNG_200_150");
+      BeginlightSleep(wait);
+      Draw_Image_from_http(0,0,"Test_PNG_300_225‬");
+      BeginlightSleep(wait);
+      Draw_Image_from_http(0,0,"Test_PNG_400_300");
+      BeginlightSleep(wait);
+      Draw_Image_from_http(0,0,"Test2_PNG_160_270");
+      BeginlightSleep(wait);
+      Draw_Image_from_http(0,0,"Test_PNG_400_200");
+      //StopWiFi(); // Reduces power consumption
+      BeginlightSleep(wait*2);
+      DisplayWeather();  
+      BeginSleep();
+    //}
+  //}  
+}
+//#########################################################################################
+
 void DisplayWeather() {                 // 4.2" e-paper display is 400x300 resolution
+     
+  //if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
+    //if (CurrentHour >= WakeupTime && CurrentHour <= SleepTime ) {
+      Serial.println("InitialiseDisplay");
+      InitialiseDisplay(); // Give screen time to initialise by getting weather data!
+      byte Attempts = 1;
+      bool RxWeather = false, RxForecast = false, RxHiveeyes = false;
+      WiFiClient client;   // wifi client object
+
+      // Obtain weather & Hiveeyes information.
+      while ((RxWeather == false || RxForecast == false || RxHiveeyes == false ) && Attempts <= 3) { // Try up-to 2 time for Weather and Forecast data
+        if (RxWeather  == false) RxWeather  = obtain_wx_data(client, "weather");
+        if (RxForecast == false) RxForecast = obtain_wx_data(client, "forecast");
+        if (RxHiveeyes == false) RxHiveeyes = obtain_hiveeyes_data(client);
+        Attempts++;
+     // }  
+      StopWiFi(); // Reduces power consumption
+    //}
   DrawHeadingSection();                 // Top line of the display
   DrawMainWeatherSection(172, 70);      // Centre section of display for Location, temperature, Weather report, current Wx Symbol and wind direction
   DrawForecastSection(233, 15);         // 3hr forecast boxes
-  DisplayPrecipitationSection(233, 82); // Precipitation sectio
-  if (WxConditions[0].Visibility > 0) Visibility(335, 100, String(WxConditions[0].Visibility) + "M");
-  if (WxConditions[0].Cloudcover > 0) CloudCover(350, 125, WxConditions[0].Cloudcover);
-  DrawAstronomySection(233, 74);        // Astronomy section Sun rise/set, Moon phase and Moon icon
+  DisplayPrecipitationSection(233, 45); // Precipitation sectio
+  if (WxConditions[0].Visibility > 0) Visibility(335, 75, String(WxConditions[0].Visibility) + "M");
+  if (WxConditions[0].Cloudcover > 0) CloudCover(350, 94, WxConditions[0].Cloudcover);
+  //DrawAstronomySection(233, 74);        // Astronomy section Sun rise/set, Moon phase and Moon icon
   DrawHiveeyesSection(187); // DrawHiveeyesSection(y) Draw Hiveeyes Selection over full Screen size
-  DrawBeeflightSection(170, 233);
-  Draw_Image_from_http(100,100,"TestPNG");
+  //DrawBeeflightSection(170, 233);
+  //Draw_Image_from_http(0,200,"Test_PNG_400_200");
+  display.display(false);
+  BeginSleep();
+  }
 }
 //#########################################################################################
 void DrawHeadingSection() {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(SCREEN_WIDTH / 2, 0, City, CENTER);
+  drawString(SCREEN_WIDTH / 2 + 40, 0, City, CENTER);
   drawString(SCREEN_WIDTH, 0, date_str, RIGHT);
   drawString(4, 0, time_str, LEFT);
   DrawBattery(34, 12);
-  DrawRSSI(97,10, wifi_signal);
-  display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  DrawRSSI(75,9, wifi_signal);
+  //display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
 }
 //#########################################################################################
 void DrawBeeflightSection(int x, int y) {
+  #ifdef Apicast
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(x, y, "morgens" , RIGHT);
   drawString(x, y+10, beeflight[0].morning, RIGHT);
@@ -197,28 +256,28 @@ void DrawBeeflightSection(int x, int y) {
   drawString(x+90, y+10, beeflight[0].evening, RIGHT);
   drawString(x+90, y+20, beeflight[1].evening, RIGHT);
   drawString(x+90, y+30, beeflight[2].evening, RIGHT);
+  #endif
 }
-
 //#########################################################################################
 void DrawMainWeatherSection(int x, int y) {
-  DisplayDisplayWindSection(x - 130, y - 20, WxConditions[0].Winddir, WxConditions[0].Windspeed, 25);
-  DisplayWXicon(x + 5, y - 5, WxConditions[0].Icon, LargeIcon);
+  DisplayDisplayWindSection(x - 132, y - 22, WxConditions[0].Winddir, WxConditions[0].Windspeed, 22);
+  DisplayWXicon(x - 25, y - 30, WxConditions[0].Icon, LargeIcon);
   u8g2Fonts.setFont(u8g2_font_helvB10_tf);
-  DrawPressureAndTrend(x - 140, y + 28, WxConditions[0].Pressure, WxConditions[0].Trend);
+  DrawPressureAndTrend(x - 140, y + 20, WxConditions[0].Pressure, WxConditions[0].Trend);
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
   String Wx_Description = WxConditions[0].Forecast0;
   if (WxConditions[0].Forecast1 != "") Wx_Description += " & " +  WxConditions[0].Forecast1;
   if (WxConditions[0].Forecast2 != "" && WxConditions[0].Forecast1 != WxConditions[0].Forecast2) Wx_Description += " & " +  WxConditions[0].Forecast2;
-  drawStringMaxWidth(x - 170, y + 83, 28, TitleCase(Wx_Description), LEFT);
-  DrawMainWx(x, y + 60);
-  display.drawRect(0, y + 68, 232, 48, GxEPD_BLACK);
+  drawStringMaxWidth(x - 170, y + 50, 40, TitleCase(Wx_Description), LEFT);
+  DrawMainWx(x-30, y + 24);
+  display.drawRect(0, y + 32, SCREEN_WIDTH, 28, GxEPD_BLACK);
 }
 //#########################################################################################
 void DrawForecastSection(int x, int y) {
   u8g2Fonts.setFont(u8g2_font_helvB10_tf);
-  DrawForecastWeather(x, y, 0);
-  DrawForecastWeather(x + 56, y, 1);
-  DrawForecastWeather(x + 112, y, 2);
+  DrawForecastWeather(x, y -2 , 0);
+  DrawForecastWeather(x + 56, y- 2, 1);
+  DrawForecastWeather(x + 112, y- 2, 2);
   //       (x,y,width,height,MinValue, MaxValue, Title, Data Array, AutoScale, ChartMode)
   for (int r = 1; r <= max_readings; r++) {
     if (Units == "I") {
@@ -237,16 +296,16 @@ void DrawForecastSection(int x, int y) {
   //u8g2Fonts.setFont(u8g2_font_helvB10_tf);
   //DrawGraph(SCREEN_WIDTH / 400 * 30,  SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
   //DrawGraph(SCREEN_WIDTH / 400 * 158, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, TXT_HUMIDITY_PERCENT, rain_readings, max_readings, autoscale_on, barchart_on);
+  //DrawGraph(SCREEN_WIDTH / 400 * 288, SCREEN_HEIGHT / 300 * 221, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 5, 0, 30, TXT_HUMIDITY_PERCENT, rain_readings, max_readings, autoscale_on, barchart_on);
 }
 //#########################################################################################
 void DrawForecastWeather(int x, int y, int index) {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  display.drawRect(x, y, 55, 65, GxEPD_BLACK);
+  DisplayWXicon(x + 28, y + 30, WxForecast[index].Icon, SmallIcon);
+  display.drawRect(x, y, 55, 50, GxEPD_BLACK);
   display.drawLine(x + 1, y + 13, x + 54, y + 13, GxEPD_BLACK);
-  DisplayWXicon(x + 28, y + 35, WxForecast[index].Icon, SmallIcon);
   drawString(x + 31, y + 3, String(WxForecast[index].Period.substring(11, 16)), CENTER);
-  drawString(x + 41, y + 52, String(WxForecast[index].High, 0) + "° / " + String(WxForecast[index].Low, 0) + "°", CENTER);
+  drawString(x + 41, y + 39, String(WxForecast[index].High, 0) + "° / " + String(WxForecast[index].Low, 0) + "°", CENTER);
 }
 //#########################################################################################
 void DrawHiveeyesSection( int y) {
@@ -979,10 +1038,9 @@ void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alig
 }
 //#########################################################################################
 void DrawImagePNG(int x, int y, String payload) {
-
+  
   // Convert format.
   const unsigned char* buffer = reinterpret_cast<const unsigned char*>(payload.c_str());
-
   upng_t* upng;
   upng = upng_new_from_bytes(buffer, payload.length());
 
@@ -996,21 +1054,35 @@ void DrawImagePNG(int x, int y, String payload) {
       const uint8_t *bitmap = upng_get_buffer(upng);
 
       // Draw image.
+      
       int width = upng_get_width(upng);
       int height = upng_get_height(upng);
-      display.writeImage(bitmap, x, y, 200, 200, false, false, true);
+      Serial.println("display Image");
+      Serial.println(width);
+      Serial.println(height);
+      display.writeScreenBuffer();
+      //display.drawBitmap(0,0,bitmap,width, height,true);
+      display.writeImage(bitmap, x, y, width, height, false, false, true);
       display.refresh();
     }
-
+    else
+    {
+      Serial.println();
+      printf("error: %u %u\n", upng_get_error(upng), upng_get_error_line(upng));
+      Serial.println();
+    }
+    Serial.println("Delete unpg Buffer");
     upng_free(upng);
+    Serial.println("uPNG Buffer Deleted");
   }
+  Serial.println("go Back");
 }
 //#########################################################################################
-void Draw_Image_from_http(int x,int y,String name) {
+void Draw_Image_from_http( int x,int y,String name) {
   // get Image Counter from name of Image in config 
   int counter = 99;
   Serial.println(name);
-  for (int i=0; i<=10; i++) {
+  for (int i=0; i<=image_available; i++) {
     if (name == get_Image[i].name) {
     Serial.println("Find Image Data in Config");
     counter = i;
@@ -1018,7 +1090,7 @@ void Draw_Image_from_http(int x,int y,String name) {
     }
   }
   if (counter == 99) {
-    Serial.println("Image not Found in Data");
+    Serial.println("Image not Found in Config");
     return;
     }
 
@@ -1028,7 +1100,7 @@ void Draw_Image_from_http(int x,int y,String name) {
   
   if (get_Image[counter].typ == PNG) {
     Serial.println("Decode PNG");
-    DrawImagePNG(x, y, image_bitmap);
+    DrawImagePNG(x, y,image_bitmap);
   }
   else if (get_Image[counter].typ == BMP){
     Serial.println("Display BMP");
@@ -1039,12 +1111,8 @@ void Draw_Image_from_http(int x,int y,String name) {
     //image_bitmap.toCharArray(copy, image_length);
     // display.writeImage(copy, x, y, 200, 200, false, false, true);
   } 
-  else {Serial.println("Image Type not support");}
-    
-  
+  else {Serial.println("Image Type not support");}  
 }
-
-
 //#########################################################################################
 void InitialiseDisplay() {
   Serial.println("Initialise Display");
@@ -1060,6 +1128,68 @@ void InitialiseDisplay() {
   display.fillScreen(GxEPD_WHITE);
   display.setFullWindow();
 }
+//#########################################################################################
+void callback(){
+   Serial.println("Call_Touch");
+   //placeholder callback function
+}
+//#########################################################################################
+void init_touch () {
+  //Setup interrupt on Touch Pad 3 (GPIO15)
+  #ifdef TouchT0 
+    touchAttachInterrupt(T0, callback , Threshold); // T0 = Gipo4
+  #endif
+  #ifdef TouchT1
+    touchAttachInterrupt(T1, callback , Threshold); // T1 = Gipo0 
+  #endif
+  #ifdef TouchT2
+    touchAttachInterrupt(T2, callback , Threshold); // T2 = Gipo2 
+  #endif
+  #ifdef TouchT3
+    touchAttachInterrupt(T3, callback , Threshold); // T3 = Gipo15! Used by Display default
+  #endif
+  #ifdef TouchT4
+    touchAttachInterrupt(T4, callback , Threshold); // T4 = Gipo13! Used by Display default
+  #endif
+  #ifdef TouchT5
+    touchAttachInterrupt(T5, callback , Threshold); // T5 = Gipo12! Used by Display default
+  #endif
+  #ifdef TouchT6
+    touchAttachInterrupt(T6, callback , Threshold); // T6 = Gipo14! Used by Display default
+  #endif
+  #ifdef TouchT7
+    touchAttachInterrupt(T7, callback , Threshold); // T7 = Gipo27
+  #endif
+  #ifdef TouchT8
+    touchAttachInterrupt(T8, callback , Threshold); // T8 = Gipo33
+  #endif
+  #ifdef TouchT9
+    touchAttachInterrupt(T9, callback , Threshold); // T9 = Gipo32
+  #endif
+}
+//#########################################################################################
+int print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+  switch(wakeup_reason)
+  {
+    case ESP_SLEEP_WAKEUP_EXT0 : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
+    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
+  }
+  return wakeup_reason;
+}
+//#########################################################################################
+void print_GPIO_wake_up(){
+  int GPIO_reason = esp_sleep_get_ext1_wakeup_status();
+  Serial.print("GPIO that triggered the wake up: GPIO ");
+  Serial.println((log(GPIO_reason))/log(2), 0);
+}
+//#########################################################################################
 /*
   Version 12.0 reformatted to use u8g2 fonts
   1.  Screen layout revised
