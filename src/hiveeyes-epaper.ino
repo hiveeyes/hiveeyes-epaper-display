@@ -32,6 +32,7 @@
 #include "forecast_record.h"
 #include "hive_record.h"
 #include "apicast_record.h"
+#include <Adafruit_I2CDevice.h>
 
 //#include "lang.h"
 //#include "lang_cz.h"                // Localisation (Czech)
