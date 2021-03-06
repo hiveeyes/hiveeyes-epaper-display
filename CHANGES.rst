@@ -7,6 +7,8 @@ Hiveeyes e-Paper display CHANGELOG
 In progress
 ***********
 
+- Update Apicast beeflight forecast access, see also `Apicast 0.8.3 release`_.
+
 
 ****************
 2021-01-15 0.1.1
@@ -41,3 +43,4 @@ In progress
 .. _Using the Hiveeyes HTTP export interface from Arduino: https://community.hiveeyes.org/t/erschliessung-der-http-datenexportschnittstelle-via-arduino/3254
 .. _Apicast HTTP API: https://community.hiveeyes.org/t/dwd-prognose-bienenflug/787/15
 .. _Anzeige von PNG-Bitmaps aus Grafana auf einem e-Paper Display: https://community.hiveeyes.org/t/anzeige-von-png-bitmaps-aus-grafana-auf-einem-e-paper-display/3286
+.. _Apicast 0.8.3 release: https://community.hiveeyes.org/t/dwd-prognose-bienenflug/787/22

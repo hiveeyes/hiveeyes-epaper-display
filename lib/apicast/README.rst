@@ -1,96 +1,100 @@
-#####################################
-Apicast HTTP to Json data export for Arduino
-#####################################
+############################################
+Apicast HTTP to JSON data export for Arduino
+############################################
 
 
 *****
 About
 *****
-This code fetches data from the Apicast-Hiveeyes-Platform.
-It converts data from the bee flight forecast of the German Weather Service (DWD)into the .Json format
-Manny Thanks to Andreas Mot
 
-Example of the API:
-http://apicast.hiveeyes.org/beeflight/forecast/germany/berlin_brandenburg/potsdam
+This code fetches data from the *Hiveeyes Apicast* service.
 
-available locations for the forecast:
+It converts data from the bee flight forecast information published by the
+German Weather Service (DWD) into JSON format.
 
-baden-wuerttemberg, Baden-Württemberg
-  freudenstadt, Freudenstadt im Schwarzwald
-  konstanz, Konstanz am Bodensee
-  lahr, Lahr
-  mannheim, Mannheim
-  oehringen, Öhringen
-  rheinstetten, Rheinstetten
-  stoetten, Stötten (Geislingen an der Steige)
-  stuttgart, Stuttgart (Flughafen)
-bayern, Bayern
-  augsburg, Augsburg
-  bamberg, Bamberg
-  fuerstenzell, Fürstenzell
-  hof, Hof
-  hohenpeissenberg, Hohenpeißenberg
-  kempten, Kempten (Allgäu)
-  muenchen, München (Flughafen)
-  nuernberg, Nürnberg (Flughafen)
-  oberstdorf, Oberstdorf (Allgäu)
-  regensburg, Regensburg
-  straubing, Straubing
-  weiden, Weiden in der Oberpfalz
-  wuerzburg, Würzburg
-berlin_brandenburg, Berlin und Brandenburg
-  angermuende, Angermünde
-  berlin, Berlin-Tempelhof
-  cottbus, Cottbus
-  lindenberg, Lindenberg (Tauche)
-  neuruppin, Neuruppin
-  potsdam, Potsdam
-hessen, Hessen
-  frankfurt, Frankfurt/Main (Flughafen)
-  fritzlar, Fritzlar
-  offenbach, Offenbach/Main (Wetterpark)
-  wasserkuppe, Wasserkuppe
-  wettenberg, Wettenberg bei Gießen
-mecklenburg-vorpommern, Mecklenburg-Vorpommern
-  arkona, Arkona (Putgarten)
-  greifswald, Greifswald
-  marnitz, Marnitz
-  rostock, Rostock-Warnemünde
-  schwerin, Schwerin
-niedersachsen_bremen, Niedersachsen und Bremen
-  bremen, Bremen (Flughafen)
-  cuxhaven, Cuxhaven
-  emden, Emden
-  hannover, Hannover (Flughafen)
-  norderney, Norderney
-nordrhein-westfalen, Nordrhein-Westfalen
-  aachen, Aachen-Orsbach
-  lippspringe, Bad Lippspringe
-  duesseldorf, Düsseldorf (Flughafen)
-  greven, Greven (Flughafen Münster/Osnabrück)
-  kahler_asten, Kahler Asten (Winterberg)
-  koeln, Köln (Flughafen Köln/Bonn)
-rheinland-pfalz_saarland, Rheinland-Pfalz und Saarland
-  hahn, Hahn (Flughafen)
-  nuerburg, Nürburg-Barweiler
-  saarbruecken, Saarbrücken (Flughafen)
-  trier, Trier-Petrisberg
-sachsen, Sachsen Sachsen-Anhalt
-  dresden, Dresden (Flughafen)
-  goerlitz, Görlitz
-  leipzig, Leipzig (Flughafen Leipzig/Halle)
-sachsen-anhalt, Sachsen-Anhalt
-  magdeburg, Magdeburg
-schleswig-holstein_hamburg, Schleswig-Holstein und Hamburg
-  fehmarn, Fehmarn
-  hamburg, Hamburg (Flughafen)
-  helgoland, Helgoland
-  kiel, Kiel-Holtenau
-  list, List auf Sylt
-  schleswig, Schleswig
-thueringen, Thüringen
-  erfurt, Erfurt (Flughafen Erfurt-Weimar)
-  gera, Gera
-  meiningen, Meiningen
+Manny thanks to the DWD and Andreas Motl.
 
 
+********
+Synopsis
+********
+
+Example of the data endpoint::
+
+    http://apicast.hiveeyes.org/beeflight/forecast/germany/brandenburg/potsdam
+
+The list of possible location slugs can be obtained from:
+
+    http://apicast.hiveeyes.org/beeflight/stations/germany/locations
+
+The available locations as of 2021 are::
+
+    [
+      "baden-wurttemberg/freudenstadt",
+      "baden-wurttemberg/konstanz",
+      "baden-wurttemberg/lahr",
+      "baden-wurttemberg/mannheim",
+      "baden-wurttemberg/ohringen",
+      "baden-wurttemberg/rheinstetten",
+      "baden-wurttemberg/stotten",
+      "baden-wurttemberg/stuttgart-flughafen",
+      "bayern/augsburg",
+      "bayern/bamberg",
+      "bayern/furstenzell",
+      "bayern/hof",
+      "bayern/hohenpeissenberg",
+      "bayern/kempten",
+      "bayern/munchen-flughafen",
+      "bayern/nurnberg-flughafen",
+      "bayern/oberstdorf",
+      "bayern/regensburg",
+      "bayern/straubing",
+      "bayern/weiden",
+      "bayern/wurzburg",
+      "berlin/berlin-tempelhof",
+      "brandenburg/angermunde",
+      "brandenburg/cottbus",
+      "brandenburg/lindenberg",
+      "brandenburg/potsdam",
+      "bremen/bremen-flughafen",
+      "hamburg/hamburg-flughafen",
+      "hessen/frankfurt-flughafen",
+      "hessen/fritzlar",
+      "hessen/offenbach-wetterpark",
+      "hessen/wasserkuppe",
+      "hessen/wettenberg-bei-giessen",
+      "mecklenburg-vorpommern/arkona",
+      "mecklenburg-vorpommern/greifswald",
+      "mecklenburg-vorpommern/marnitz",
+      "mecklenburg-vorpommern/rostock-warnemunde",
+      "mecklenburg-vorpommern/schwerin",
+      "mecklenburg-vorpommern/waren-muritz",
+      "niedersachsen/cuxhaven",
+      "niedersachsen/emden",
+      "niedersachsen/hannover-flughafen",
+      "niedersachsen/luchow",
+      "niedersachsen/norderney",
+      "nordrhein-westfalen/aachen-orsbach",
+      "nordrhein-westfalen/bad-lippspringe",
+      "nordrhein-westfalen/dusseldorf-flughafen",
+      "nordrhein-westfalen/essen-bredeney",
+      "nordrhein-westfalen/kahler-asten",
+      "nordrhein-westfalen/koln-bonn-flughafen",
+      "nordrhein-westfalen/munster-osnabruck-flughafen",
+      "rheinland-pfalz/hahn",
+      "rheinland-pfalz/nurburg-barweiler",
+      "rheinland-pfalz/trier-petrisberg",
+      "saarland/saarbrucken-flughafen",
+      "sachsen-anhalt/magdeburg",
+      "sachsen/dresden-klotzsche-flughafen",
+      "sachsen/gorlitz",
+      "sachsen/leipzig-halle-flughafen",
+      "schleswig-holstein/fehmarn",
+      "schleswig-holstein/helgoland",
+      "schleswig-holstein/kiel-holtenau",
+      "schleswig-holstein/list-auf-sylt",
+      "schleswig-holstein/schleswig",
+      "thuringen/erfurt-weimar-flughafen",
+      "thuringen/gera-leumnitz",
+      "thuringen/meiningen"
+    ]

@@ -41,12 +41,10 @@ bool decode_beeflight(WiFiClient& json) {
 bool obtain_apicast_data(WiFiClient& client) {
 
   // Define URI.
-  // https://getkotori.org/docs/handbook/export/
   HTTPClient http;
   http.useHTTP10(true);
   String server = apicast_server;
 
-  // TODO: Improve Kotori by requesting only last reading.
   String uri = apicast_uri;
 
   // Make HTTP request.
