@@ -1,7 +1,7 @@
-$(eval venvpath  := .venv3)
-$(eval python    := $(venvpath)/bin/python)
-$(eval pip       := $(venvpath)/bin/pip)
-$(eval pio       := $(venvpath)/bin/pio)
+$(eval venv      := .venv)
+$(eval python    := $(venv)/bin/python)
+$(eval pip       := $(venv)/bin/pip)
+$(eval pio       := $(venv)/bin/pio)
 
 
 build: setup-virtualenv
@@ -11,5 +11,5 @@ upload:
 	$(pio) run --target upload --upload-port $(MCU_PORT)
 
 setup-virtualenv:
-	@test -e $(python) || `command -v virtualenv` --python=python3 $(venvpath)
+	@test -e $(python) || python3 -m venv $(venv)
 	$(pip) install platformio
