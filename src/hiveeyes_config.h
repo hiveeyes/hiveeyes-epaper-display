@@ -24,18 +24,17 @@ String ReadingRssi                   = "system.wifi.rssi";
 #endif
 
 //############################################################################################
-//############ Forecast beeflight - Get Data from DWD by Apicast-Hiveeyes ####################
+//############### Beeflight forecast - Get DWD data from Hiveeyes Apicast ####################
 //############################################################################################
 
 //#define Apicast // uncomment with "//"" if not use
 #ifdef Apicast
 String apicast_server   = "apicast.hiveeyes.org";
 String apicast_uri_1    = "/beeflight/forecast/germany/";
-String apicast_uri_2    = "berlin_brandenburg/berlin"; // * federal-state and Station                              
+String apicast_uri_2    = "brandenburg/potsdam"; // * federal state and station
 #endif
-// * You can get a list of available Stations here http://apicast.hiveeyes.org/ under Index/List of side slugs
-// or build yourself from here https://www.dwd.de/DE/leistungen/biene_flug/bienenflug.html from "Bundesland" and Station
-// Example: String apicast_uri_2    = "Bundesland"+"/"+"Station";
+// To get an idea about Apicast, please visit http://apicast.hiveeyes.org/.
+// You can get a list of available locations at http://apicast.hiveeyes.org/beeflight/stations/germany/locations.
 
 //###########################################################################
 //############### get Pictures from Http/Https ##############################
